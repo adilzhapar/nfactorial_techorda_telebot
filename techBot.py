@@ -167,7 +167,7 @@ def handle_confirmation(message, content_types=['photo']):
 def schedule_messages():
     send_messages_upd()
 
-    next_run = datetime.datetime.now() + datetime.timedelta(minutes=2)
+    next_run = datetime.datetime.now() + datetime.timedelta(hours=4)
     delay = (next_run - datetime.datetime.now()).total_seconds()
     threading.Timer(delay, schedule_messages).start()
 

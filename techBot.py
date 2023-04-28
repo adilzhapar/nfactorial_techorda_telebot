@@ -10,7 +10,7 @@ from telebot.apihelper import ApiTelegramException
 
 load_dotenv()
 
-
+ 
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 
 
@@ -35,6 +35,23 @@ def handle_start(message):
         clear_blocker(message.chat.id)
     bot.register_next_step_handler(sent_msg, handle_name)
 
+
+@bot.message_handler(commands=['get_list'])
+def handle_get_list(message):
+    with sqlite3.connect('users.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT full_name, completed FROM users')
+        users = c.fetchall()
+
+    with open('users.csv', 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(['full_name', 'completed'])
+        writer.writerows(users)
+
+    with open('users.csv', 'rb') as f:
+        bot.send_document(message.chat.id, f)
+
+    os.remove('users.csv')
         
 
 def handle_name(message):

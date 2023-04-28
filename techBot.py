@@ -1,5 +1,4 @@
 import telebot
-import sqlite3
 from telebot import types
 import csv
 import datetime
@@ -7,22 +6,52 @@ from dotenv import load_dotenv
 import os
 import threading
 from telebot.apihelper import ApiTelegramException
+from supabase import create_client
+
 
 load_dotenv()
 
  
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
+url = os.getenv('SUPABASE_URL')
+key = os.getenv('SUPABASE_SECRET_KEY')
+supabase = create_client(url, key)
 
 
-with sqlite3.connect('users.db') as conn:
-    c = conn.cursor()
 
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-             (
-              chat_id INTEGER NOT NULL PRIMARY KEY,
-              full_name TEXT NOT NULL,
-              completed INTEGER DEFAULT 0)''')
-    conn.commit()
+
+def get_users():
+    data, count = supabase.table('users').select("*").execute()
+
+    users = [list(user.values()) for user in data[1]]
+    return users
+
+def add_user(chat_id, full_name):
+    data, count = supabase.table('users').insert({"chat_id": chat_id, "full_name": full_name}).execute()
+    print(data)
+
+
+def get_public_users():
+    data, count = supabase.table('users').select("full_name, completed").execute()
+
+    users = [list(user.values()) for user in data[1]]
+    return users
+
+def update_user(chat_id):
+    data, count = supabase.table('users').update({"completed": 1}).eq('chat_id', chat_id).execute()
+    return data
+
+
+
+# with sqlite3.connect('users.db') as conn:
+#     c = conn.cursor()
+
+#     c.execute('''CREATE TABLE IF NOT EXISTS users
+#              (
+#               chat_id INTEGER NOT NULL PRIMARY KEY,
+#               full_name TEXT NOT NULL,
+#               completed INTEGER DEFAULT 0)''')
+#     conn.commit()
 
 
 
@@ -32,16 +61,14 @@ def handle_start(message):
         sent_msg = bot.send_message(message.chat.id, "Пожалуйста, введите ваше ФИО (ответом на это сообщение)")
     except ApiTelegramException as e:
         print(e.description, ' in ', message.chat.id)
-        clear_blocker(message.chat.id)
+
     bot.register_next_step_handler(sent_msg, handle_name)
 
 
 @bot.message_handler(commands=['get_list'])
 def handle_get_list(message):
-    with sqlite3.connect('users.db') as conn:
-        c = conn.cursor()
-        c.execute('SELECT full_name, completed FROM users')
-        users = c.fetchall()
+
+    users = get_public_users()
 
     with open('users.csv', 'w') as f:
         writer = csv.writer(f)
@@ -55,39 +82,37 @@ def handle_get_list(message):
         
 
 def handle_name(message):
-    with sqlite3.connect('users.db') as conn:
-        c = conn.cursor()
-        c.execute('INSERT INTO users values(?, ?, ?)', (message.chat.id, message.text, 0))
-
-        conn.commit()
+    add_user(message.chat.id, message.text)
 
     try:
         bot.send_message(message.chat.id, f"Добро пожаловать, {message.text}!")
     except ApiTelegramException as e:
-        clear_blocker(message.chat.id)
         print(e.description, ' in ', message.chat.id)
+    
     send_messages_upd()
 
 
 
 def send_messages_upd():
-    with sqlite3.connect('users.db') as conn:
-        c = conn.cursor()
 
-        message_text = 'Салем! Вы уже подписали документ?'
 
-        keyboard = types.InlineKeyboardMarkup()
-        approve_button = types.InlineKeyboardButton(text='Да', callback_data='approve')
-        disapprove_button = types.InlineKeyboardButton(text='Пока нет:(', callback_data='disapprove')
-        keyboard.add(approve_button, disapprove_button)
+    message_text = 'Салем! Вы уже подписали документ?'
 
-        
-        for user in c.execute("SELECT * FROM users WHERE completed=0"):
+    keyboard = types.InlineKeyboardMarkup()
+    approve_button = types.InlineKeyboardButton(text='Да', callback_data='approve')
+    disapprove_button = types.InlineKeyboardButton(text='Пока нет:(', callback_data='disapprove')
+    keyboard.add(approve_button, disapprove_button)
+
+    for user in get_users():
+        chat_id = user[0]
+        completed = user[2]
+
+        if completed == False:
             try:
-                bot.send_message(user[0], message_text, reply_markup=keyboard)
+                bot.send_message(chat_id, message_text, reply_markup=keyboard)
             except ApiTelegramException as e:
-                print(e.description, ' in ', user[0])
-                clear_blocker(user[0])
+                print(e.description, ' in ', chat_id)
+
   
 
 
@@ -107,7 +132,7 @@ def callback_inline(call):
                 bot.send_message(call.message.chat.id, 'Можете подписать по ссылке:', reply_markup=keyboard)
             except ApiTelegramException as e:
                 print(e.description, ' in ', call.message.chat.id)
-                clear_blocker(call.message.chat.id)
+
 
 
 
@@ -116,7 +141,7 @@ def provide_confirmation(chat_id):
         sent_msg = bot.send_message(chat_id, 'Пожалуйста подтвердите, что вы подписали документ, отправьте screenshot')
     except ApiTelegramException as e:
         print(e.description, ' in ', chat_id)
-        clear_blocker(chat_id)
+
     bot.register_next_step_handler(sent_msg, handle_confirmation)
 
 
@@ -126,34 +151,26 @@ def handle_confirmation(message, content_types=['photo']):
             sent_msg = bot.reply_to(message, 'Пожалуйста, отправьте изображение')
         except ApiTelegramException as e:
             print(e.description, ' in ', message.chat.id)
-            clear_blocker(message.chat.id)
+
         bot.register_next_step_handler(sent_msg, handle_confirmation)
         return
     else:
-        with sqlite3.connect('users.db') as conn:
-            c = conn.cursor()
-            c.execute('UPDATE users SET completed=1 WHERE chat_id=?', (message.chat.id, ))
-            conn.commit()
+        update_user(message.chat.id)
+
         try:
             bot.reply_to(message, 'Спасибо!')
         except ApiTelegramException as e:
             print(e.description, ' in ', message.chat.id)
-            clear_blocker(message.chat.id)
+
 
 
 def schedule_messages():
     send_messages_upd()
 
-    next_run = datetime.datetime.now() + datetime.timedelta(hours=4)
+    next_run = datetime.datetime.now() + datetime.timedelta(minutes=2)
     delay = (next_run - datetime.datetime.now()).total_seconds()
     threading.Timer(delay, schedule_messages).start()
 
-
-def clear_blocker(chat_id):
-    with sqlite3.connect('users.db') as conn:
-        c = conn.cursor()
-        c.execute('DELETE FROM users WHERE chat_id=?', (chat_id, ))
-        conn.commit()
 
 
 schedule_messages()

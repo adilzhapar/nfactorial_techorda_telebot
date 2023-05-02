@@ -30,6 +30,7 @@ def add_user(chat_id, full_name):
     try:
         data, count = supabase.table('users').insert({"chat_id": chat_id, "full_name": full_name}).execute()
     except Exception as e:
+
         raise e
     print(data)
 
@@ -88,8 +89,11 @@ def handle_get_list(message):
         
 
 def handle_name(message):
-    add_user(message.chat.id, message.text)
-
+    if message.text is not None or message.text != '':
+        add_user(message.chat.id, message.text)
+    else:
+        handle_start(message)
+        
     try:
         bot.send_message(message.chat.id, f"Добро пожаловать, {message.text}!")
     except ApiTelegramException as e:

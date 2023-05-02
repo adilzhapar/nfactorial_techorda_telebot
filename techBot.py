@@ -89,7 +89,7 @@ def handle_name(message):
     except ApiTelegramException as e:
         print(e.description, ' in ', message.chat.id)
     
-    send_messages_upd()
+    # send_messages_upd()
 
 
 

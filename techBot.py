@@ -27,7 +27,10 @@ def get_users():
     return users
 
 def add_user(chat_id, full_name):
-    data, count = supabase.table('users').insert({"chat_id": chat_id, "full_name": full_name}).execute()
+    try:
+        data, count = supabase.table('users').insert({"chat_id": chat_id, "full_name": full_name}).execute()
+    except Exception as e:
+        raise e
     print(data)
 
 
@@ -38,7 +41,10 @@ def get_public_users():
     return users
 
 def update_user(chat_id):
-    data, count = supabase.table('users').update({"completed": 1}).eq('chat_id', chat_id).execute()
+    try:
+        data, count = supabase.table('users').update({"completed": 1}).eq('chat_id', chat_id).execute()
+    except Exception as e:
+        raise e
     return data
 
 

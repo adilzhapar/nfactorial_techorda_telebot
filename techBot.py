@@ -31,7 +31,7 @@ def add_user(chat_id, full_name):
         data, count = supabase.table('users').insert({"chat_id": chat_id, "full_name": full_name}).execute()
     except Exception as e:
 
-        raise e
+        print(e)
     print(data)
 
 
@@ -45,7 +45,7 @@ def update_user(chat_id):
     try:
         data, count = supabase.table('users').update({"completed": 1}).eq('chat_id', chat_id).execute()
     except Exception as e:
-        raise e
+        print(e)
     return data
 
 

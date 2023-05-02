@@ -90,6 +90,21 @@ def handle_name(message):
         print(e.description, ' in ', message.chat.id)
     
     # send_messages_upd()
+    send_message_to_user(message.chat.id)
+
+
+def send_message_to_user(chat_id):
+    message_text = 'Салем! Вы уже подписали документ?'
+
+    keyboard = types.InlineKeyboardMarkup()
+    approve_button = types.InlineKeyboardButton(text='Да', callback_data='approve')
+    disapprove_button = types.InlineKeyboardButton(text='Пока нет:(', callback_data='disapprove')
+    keyboard.add(approve_button, disapprove_button)
+
+    try:
+        bot.send_message(chat_id, message_text, reply_markup=keyboard)
+    except ApiTelegramException as e:
+        print(e.description, ' in ', chat_id)
 
 
 
